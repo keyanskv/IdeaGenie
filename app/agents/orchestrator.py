@@ -22,40 +22,54 @@ class AIOrchestrator:
 
         return self._single_model_chat(model_id, user_input)
 
-    def _single_model_chat(self, model_id: str, prompt: str) -> Dict[str, Any]:
-        model = get_model(model_id)
-        response = model.generate_response(prompt, self.memory.get_history())
-        
-        if "error" in response:
-            return response
+    def _single_model_chat(self, model_id: str, prompt: str, attempt: int = 1) -> Dict[str, Any]:
+        try:
+            model = get_model(model_id)
+            response = model.generate_response(prompt, self.memory.get_history())
+            
+            if "error" in response:
+                raise Exception(response["error"])
 
-        # Track cost
-        cost_tracker.track_usage(model_id, response["input_tokens"], response["output_tokens"])
-        
-        # Update memory
-        self.memory.add_message("user", prompt)
-        self.memory.add_message("assistant", response["content"])
-        
-        return response
+            # Track cost
+            cost_tracker.track_usage(model_id, response["input_tokens"], response["output_tokens"])
+            
+            # Update memory
+            self.memory.add_message("user", prompt)
+            self.memory.add_message("assistant", response["content"])
+            
+            return response
+        except Exception as e:
+            logger.warning(f"Model {model_id} failed (attempt {attempt}): {e}")
+            if attempt < 2:
+                # Fallback to Gemini for cost-efficiency and reliability
+                fallback_model = "gemini-1.5-flash"
+                if model_id != fallback_model:
+                    logger.info(f"Falling back to {fallback_model}...")
+                    return self._single_model_chat(fallback_model, prompt, attempt + 1)
+            return {"error": str(e)}
 
     def _ensemble_chat(self, prompt: str) -> Dict[str, Any]:
+        # Using a mix of providers for true ensemble diversity
         models_to_use = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"]
         responses = []
         
         for mid in models_to_use:
             logger.info(f"Ensemble: Querying {mid}...")
-            res = get_model(mid).generate_response(prompt, self.memory.get_history())
-            if "error" not in res:
-                responses.append(res)
-                cost_tracker.track_usage(mid, res["input_tokens"], res["output_tokens"])
+            try:
+                res = get_model(mid).generate_response(prompt, self.memory.get_history())
+                if "error" not in res:
+                    responses.append(res)
+                    cost_tracker.track_usage(mid, res["input_tokens"], res["output_tokens"])
+            except Exception as e:
+                logger.error(f"Ensemble model {mid} failed: {e}")
 
         if not responses:
             return {"error": "All models in ensemble failed."}
 
-        # Simple ranking / selection: Choose the longest one as "most detailed" or use a judge
-        # For now, let's just return all and let the CLI handle display, 
-        # or pick the best one via a judge model.
-        best_response = self._rank_responses(prompt, responses)
+        if len(responses) == 1:
+            best_response = responses[0]
+        else:
+            best_response = self._rank_responses(prompt, responses)
         
         self.memory.add_message("user", prompt)
         self.memory.add_message("assistant", best_response["content"])
@@ -63,24 +77,36 @@ class AIOrchestrator:
         return best_response
 
     def _rank_responses(self, prompt: str, responses: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Rank responses using a judge model (GPT-4o) based on specific criteria."""
         logger.info("Ranking responses using GPT-4o as judge...")
-        judge = get_model("gpt-4o")
-        
-        ranking_prompt = f"Original Prompt: {prompt}\n\n"
-        for i, res in enumerate(responses):
-            ranking_prompt += f"Response {i+1} (Model: {res['model']}):\n{res['content']}\n\n"
-        
-        ranking_prompt += "Evaluate the responses and pick the best one. Return only the index of the best response (e.g., '1')."
-        
-        judge_res = judge.generate_response(ranking_prompt, [])
         try:
-            best_idx = int(judge_res["content"].strip()) - 1
+            judge = get_model("gpt-4o")
+            
+            ranking_prompt = (
+                f"User Prompt: {prompt}\n\n"
+                "Evaluate the following AI responses for:\n"
+                "1. Accuracy\n2. Completeness\n3. Reasoning Quality\n\n"
+            )
+            for i, res in enumerate(responses):
+                ranking_prompt += f"--- RESPONSE {i+1} (Model: {res['model']}) ---\n{res['content']}\n\n"
+            
+            ranking_prompt += (
+                "Decide which response is the absolute best. "
+                "Output ONLY the single number of the best response (e.g., '1', '2', or '3'). "
+                "Do not explain your choice."
+            )
+            
+            judge_res = judge.generate_response(ranking_prompt, [])
+            best_idx_str = "".join(filter(str.isdigit, judge_res.get("content", "1")))
+            best_idx = int(best_idx_str) - 1 if best_idx_str else 0
+            
             if 0 <= best_idx < len(responses):
+                logger.info(f"Judge selected Response {best_idx + 1}")
                 return responses[best_idx]
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Ranking failed: {e}. Falling back to first valid response.")
         
-        return responses[0] # Fallback
+        return responses[0]
 
     def _reflection_chat(self, prompt: str) -> Dict[str, Any]:
         logger.info("Starting reflection loop (Generate -> Critique -> Improve)...")

@@ -31,11 +31,14 @@ class ModelRouter:
         if intent == "coding":
             return "deepseek-coder"
         elif intent == "reasoning":
-            return "claude-3-5-sonnet"
+            # Prefer the new high-capacity Groq model for complex reasoning if available
+            return "gpt-oss-120b" 
         elif intent == "research":
-            return "gpt-4o" # GPT-4o often better for factual research
+            return "gpt-4o" 
         else:
             # Casual or simple
-            if len(prompt) < 150:
+            if len(prompt) < 100:
+                return "llama3-70b" 
+            if len(prompt) < 200:
                 return "gemini-1.5-flash"
             return "gpt-4o"

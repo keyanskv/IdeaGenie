@@ -3,6 +3,7 @@ from app.models.openai_model import OpenAIModel
 from app.models.anthropic_model import ClaudeModel
 from app.models.gemini_model import GeminiModel
 from app.models.deepseek_model import DeepSeekModel
+from app.models.groq_model import GroqModel
 
 def get_model(model_name: str):
     if model_name not in MODELS:
@@ -19,5 +20,7 @@ def get_model(model_name: str):
         return GeminiModel(config.name, api_key)
     elif config.provider == "deepseek":
         return DeepSeekModel(config.name, api_key)
+    elif config.provider == "groq":
+        return GroqModel(config.name, api_key)
     else:
         raise ValueError(f"Provider {config.provider} not implemented.")

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IdeaGenie AI | Premium Chat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/your-font-awesome-kit.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo">IdeaGenie</div>
+        
+        <div class="nav-section">
+            <div class="nav-label">Mode Configuration</div>
+            <select id="mode-select">
+                <option value="auto">Auto Route</option>
+                <option value="ensemble">Ensemble (Best of 3)</option>
+                <option value="reflection">Reflection (Critique loop)</option>
+                <option value="single">Single Model</option>
+            </select>
+            
+            <div id="model-select-container">
+                <div class="nav-label">Model</div>
+                <select id="model-select">
+                    {% for mid, config in models.items() %}
+                    <option value="{{ mid }}">{{ mid }} ({{ config.provider }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-label">API Configuration</div>
+            <select id="provider-select">
+                <option value="openai">OpenAI Token</option>
+                <option value="anthropic">Anthropic Token</option>
+                <option value="google">Google API Key</option>
+                <option value="groq">Groq API Key</option>
+            </select>
+            <input type="password" id="api-token" placeholder="Enter your token...">
+            <button class="btn btn-primary" id="save-token">Update Token</button>
+        </div>
+
+        <div class="nav-section" style="margin-top: auto;">
+            <button class="btn" style="background: rgba(239, 68, 68, 0.2); color: #f87171;" id="clear-chat">Clear History</button>
+        </div>
+    </div>
+
+    <div class="chat-main">
+        <div class="messages-container" id="chat-messages">
+            <div class="message-wrapper ai">
+                <div class="message ai">
+                    Hello! I'm your multi-model AI assistant. You can configure my modes and providers in the sidebar. How can I help you today?
+                </div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-container">
+                <input type="text" id="user-input" placeholder="Ask me anything..." autocomplete="off">
+                <button class="send-btn" id="send-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

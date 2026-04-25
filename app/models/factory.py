@@ -5,12 +5,13 @@ from app.models.gemini_model import GeminiModel
 from app.models.deepseek_model import DeepSeekModel
 from app.models.groq_model import GroqModel
 
-def get_model(model_name: str):
+def get_model(model_name: str, api_key: str = None):
     if model_name not in MODELS:
         raise ValueError(f"Model {model_name} not supported.")
     
     config = MODELS[model_name]
-    api_key = API_KEYS.get(config.provider)
+    if not api_key:
+        api_key = API_KEYS.get(config.provider)
     
     if config.provider == "openai":
         return OpenAIModel(config.name, api_key)

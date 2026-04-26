@@ -134,13 +134,14 @@ input:focus {
 }
 
 .message {
-    max-width: 70%;
-    padding: 20px 24px;
+    max-width: 85%;
+    padding: 24px 32px;
     border-radius: 24px;
-    line-height: 1.7;
+    line-height: 1.6;
     font-size: 16px;
     position: relative;
     animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    word-wrap: break-word;
 }
 
 .message.user {
@@ -156,6 +157,55 @@ input:focus {
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(20px);
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    color: #e2e8f0;
+}
+
+/* Markdown Support Styles */
+.message h1, .message h2, .message h3 {
+    margin: 1.5rem 0 1rem 0;
+    color: var(--accent-primary);
+    line-height: 1.2;
+}
+
+.message p {
+    margin-bottom: 1rem;
+}
+
+.message strong {
+    color: var(--accent-primary);
+    font-weight: 700;
+}
+
+.message ul, .message ol {
+    margin: 1rem 0;
+    padding-left: 1.5rem;
+}
+
+.message li {
+    margin-bottom: 0.5rem;
+}
+
+.message code {
+    background: rgba(0,0,0,0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    color: var(--accent-secondary);
+}
+
+.message pre {
+    background: rgba(0,0,0,0.5);
+    padding: 16px;
+    border-radius: 12px;
+    margin: 1rem 0;
+    overflow-x: auto;
+    border: 1px solid var(--glass-border);
+}
+
+.message pre code {
+    background: transparent;
+    padding: 0;
+    color: #94a3b8;
 }
 
 @keyframes slideIn {
@@ -304,4 +354,58 @@ input:focus {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
+}
+
+/* Switch Toggle */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.1);
+    transition: .4s;
+    border: 1px solid var(--glass-border);
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+}
+
+input:checked + .slider {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+input:checked + .slider:before {
+    transform: translateX(20px);
+}
+
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
 }

@@ -14,6 +14,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const attachmentPreview = document.getElementById('attachment-preview');
     const fileNameSpan = attachmentPreview.querySelector('.file-name');
     const removeFileBtn = document.getElementById('remove-file');
+    const webSearchToggle = document.getElementById('web-search-toggle');
+
+    function renderMarkdown(text) {
+        if (!text) return "";
+        
+        // 1. Preserve newlines by splitting into paragraphs first
+        let blocks = text.split(/\n\n+/);
+        
+        return blocks.map(block => {
+            // 2. Headings
+            block = block.replace(/^### (.*$)/gm, '<h3>$1</h3>');
+            block = block.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+            block = block.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+            
+            // 3. Bold
+            block = block.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // 4. Code Blocks
+            block = block.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+            
+            // 5. Inline Code
+            block = block.replace(/`([^`]+)`/g, '<code>$1</code>');
+            
+            // 6. Lists
+            block = block.replace(/^\- (.*$)/gm, '<li>$1</li>');
+            if (block.includes('<li>')) {
+                block = '<ul>' + block + '</ul>';
+            }
+            
+            // 7. Standard paragraphs (if not already a tag)
+            if (!block.startsWith('<h') && !block.startsWith('<pre') && !block.startsWith('<ul')) {
+                return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+            }
+            return block;
+        }).join('');
+    }
 
     let currentAttachment = null;
 
@@ -33,7 +69,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const msg = document.createElement('div');
         msg.className = `message ${role}`;
-        msg.textContent = content;
+        
+        if (role === 'ai') {
+            msg.innerHTML = renderMarkdown(content);
+        } else {
+            msg.textContent = content;
+        }
 
         wrapper.appendChild(msg);
         chatMessages.appendChild(wrapper);
@@ -108,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 aiMessageContent += event.data;
-                aiMessageDiv.textContent = aiMessageContent;
+                aiMessageDiv.innerHTML = renderMarkdown(aiMessageContent);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             };
 

@@ -5,6 +5,7 @@ from app.agents.orchestrator import AIOrchestrator
 from app.config import MODELS, AppConfig
 from app.utils.file_parser import parse_file
 from app.utils.logger import logger
+from app.utils.env_manager import env_manager
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = AppConfig.SECRET_KEY
@@ -101,6 +102,25 @@ def set_token():
 def clear():
     orchestrator.memory.clear()
     return jsonify({"status": "success"})
+
+@app.route("/setup_status")
+def setup_status():
+    return jsonify({
+        "is_complete": env_manager.is_setup_complete(),
+        "configured_keys": [k for k, v in env_manager.get_keys().items() if v]
+    })
+
+@app.route("/update_persistent_keys", methods=["POST"])
+def update_persistent_keys():
+    try:
+        data = request.json
+        keys = data.get("keys", {})
+        for key, value in keys.items():
+            if value:
+                env_manager.update_key(key, value)
+        return jsonify({"status": "success", "message": "API keys saved to .env"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/stats")
 def stats():

@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+motor
+pydantic
+pydantic-settings
+python-dotenv
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+httpx
+google-genai
+openai
+anthropic
+groq
+tiktoken
+rich

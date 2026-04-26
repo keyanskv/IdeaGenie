@@ -8,15 +8,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveTokenBtn = document.getElementById('save-token');
     const providerSelect = document.getElementById('provider-select');
     const clearChatBtn = document.getElementById('clear-chat');
+    const totalCostSpan = document.getElementById('total-cost');
+    const fileInput = document.getElementById('file-input');
+    const uploadBtn = document.getElementById('upload-btn');
+    const attachmentPreview = document.getElementById('attachment-preview');
+    const fileNameSpan = attachmentPreview.querySelector('.file-name');
+    const removeFileBtn = document.getElementById('remove-file');
+
+    let currentAttachment = null;
+
+    async function updateStats() {
+        try {
+            const response = await fetch('/stats');
+            const data = await response.json();
+            totalCostSpan.textContent = `$${data.total_cost.toFixed(4)}`;
+        } catch (err) {
+            console.error('Failed to fetch stats:', err);
+        }
+    }
 
     function appendMessage(role, content) {
         const wrapper = document.createElement('div');
         wrapper.className = `message-wrapper ${role}`;
-        
+
         const msg = document.createElement('div');
         msg.className = `message ${role}`;
         msg.textContent = content;
-        
+
         wrapper.appendChild(msg);
         chatMessages.appendChild(wrapper);
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -26,39 +44,83 @@ document.addEventListener('DOMContentLoaded', () => {
         const message = userInput.value.trim();
         if (!message) return;
 
+        const mode = modeSelect.value;
+        const modelId = modelSelect.value;
+        const attachmentContent = currentAttachment ? currentAttachment.content : null;
+
         userInput.value = '';
+        if (currentAttachment) clearAttachment();
         appendMessage('user', message);
 
-        // Add loading state
+        // Add loading state message
         const loadingId = 'ai-loading-' + Date.now();
         const loadingWrapper = document.createElement('div');
         loadingWrapper.className = 'message-wrapper ai';
         loadingWrapper.id = loadingId;
-        loadingWrapper.innerHTML = `<div class="message ai">Thinking...</div>`;
+        loadingWrapper.innerHTML = `<div class="message ai"><span class="thinking-dot"></span><span class="thinking-dot" style="animation-delay: 0.2s"></span><span class="thinking-dot" style="animation-delay: 0.4s"></span></div>`;
         chatMessages.appendChild(loadingWrapper);
         chatMessages.scrollTop = chatMessages.scrollHeight;
 
-        try {
-            const response = await fetch('/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: message,
-                    mode: modeSelect.value,
-                    model_id: modelSelect.value
-                })
-            });
-            
-            const data = await response.json();
-            document.getElementById(loadingId).remove();
+        let aiMessageContent = "";
+        const aiMessageDiv = document.createElement('div');
+        aiMessageDiv.className = 'message ai';
+        aiMessageDiv.style.display = 'none';
 
-            if (data.error) {
-                appendMessage('ai', 'Error: ' + data.error);
-            } else {
-                appendMessage('ai', data.content);
+        const aiWrapper = document.createElement('div');
+        aiWrapper.className = 'message-wrapper ai';
+        aiWrapper.appendChild(aiMessageDiv);
+
+        try {
+            // Use streaming for most modes, except for agentic which is too complex for simple SSE
+            if (mode === 'agentic' || mode === 'ensemble' || mode === 'pipeline') {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message, mode, model_id: modelId, attachment: attachmentContent
+                    })
+                });
+                const data = await response.json();
+                document.getElementById(loadingId).remove();
+                if (data.error) appendMessage('ai', 'Error: ' + data.error);
+                else appendMessage('ai', data.content);
+                updateStats();
+                return;
             }
+
+            // Streaming Logic (SSE)
+            const params = new URLSearchParams({
+                message, mode, model_id: modelId, attachment: attachmentContent || ""
+            });
+            const eventSource = new EventSource(`/chat_stream?${params.toString()}`);
+
+            eventSource.onmessage = (event) => {
+                if (document.getElementById(loadingId)) {
+                    document.getElementById(loadingId).remove();
+                    chatMessages.appendChild(aiWrapper);
+                    aiMessageDiv.style.display = 'block';
+                }
+
+                if (event.data === '[DONE]') {
+                    eventSource.close();
+                    updateStats();
+                    return;
+                }
+
+                aiMessageContent += event.data;
+                aiMessageDiv.textContent = aiMessageContent;
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            };
+
+            eventSource.onerror = (err) => {
+                console.error("EventSource failed:", err);
+                eventSource.close();
+                if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
+                appendMessage('ai', 'Streaming connection failed.');
+            };
+
         } catch (err) {
-            document.getElementById(loadingId).remove();
+            if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
             appendMessage('ai', 'Connection error. Is the server running?');
         }
     }
@@ -73,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ provider, token })
         });
-        
+
         const data = await response.json();
         if (data.status === 'success') {
             apiTokenInput.value = '';
@@ -91,4 +153,48 @@ document.addEventListener('DOMContentLoaded', () => {
     userInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleSend();
     });
+
+    uploadBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            fileNameSpan.textContent = `Uploading ${file.name}...`;
+            attachmentPreview.style.display = 'flex';
+
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (data.status === 'success') {
+                currentAttachment = {
+                    name: file.name,
+                    content: data.content
+                };
+                fileNameSpan.textContent = file.name;
+            } else {
+                alert('Upload failed: ' + data.error);
+                clearAttachment();
+            }
+        } catch (err) {
+            alert('Upload error. See console.');
+            console.error(err);
+            clearAttachment();
+        }
+    });
+
+    function clearAttachment() {
+        currentAttachment = null;
+        fileInput.value = '';
+        attachmentPreview.style.display = 'none';
+    }
+
+    removeFileBtn.addEventListener('click', clearAttachment);
 });

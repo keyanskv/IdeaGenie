@@ -28,3 +28,18 @@ class OpenAIModel(BaseModel):
         except Exception as e:
             logger.error(f"OpenAI Error: {e}")
             return {"error": str(e)}
+
+    def generate_stream(self, prompt: str, history: List[Dict[str, str]]):
+        try:
+            messages = history + [{"role": "user", "content": prompt}]
+            response = self.client.chat.completions.create(
+                model=self.model_id,
+                messages=messages,
+                stream=True
+            )
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as e:
+            logger.error(f"OpenAI Stream Error: {e}")
+            yield f"Error: {str(e)}"

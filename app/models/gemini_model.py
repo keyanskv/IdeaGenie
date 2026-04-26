@@ -1,4 +1,4 @@
-import google.generativeai as genai
+from google import genai
 from typing import List, Dict, Any
 from app.models.base import BaseModel
 from app.utils.logger import logger
@@ -6,28 +6,29 @@ from app.utils.logger import logger
 class GeminiModel(BaseModel):
     def __init__(self, model_id: str, api_key: str):
         super().__init__(model_id, api_key)
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_id)
+        self.client = genai.Client(api_key=api_key)
 
     def generate_response(self, prompt: str, history: List[Dict[str, str]]) -> Dict[str, Any]:
         try:
-            # Convert history to Gemini format
-            chat = self.model.start_chat(history=[]) # Simplifying for now
-            # Note: Gemini has a specific chat session format. 
-            # For a quick implementation, we'll join the context into the prompt or map correctly.
-            
-            # Mapping:
-            gemini_history = []
+            # Convert history to google-genai format
+            contents = []
             for msg in history:
+                if msg["role"] == "system":
+                    # Note: System instructions are handled separately in generate_content
+                    # but for simplicity we skip or can prepent them. 
+                    # Here we follow the previous logic of skipping.
+                    continue
                 role = "user" if msg["role"] == "user" else "model"
-                if msg["role"] == "system": continue # Gemini handles system separately
-                gemini_history.append({"role": role, "parts": [msg["content"]]})
+                contents.append({"role": role, "parts": [{"text": msg["content"]}]})
             
-            chat = self.model.start_chat(history=gemini_history)
-            response = chat.send_message(prompt)
+            # Add current prompt
+            contents.append({"role": "user", "parts": [{"text": prompt}]})
             
-            # Gemini token count is async/separate usually, but we can estimate or use metadata if available
-            # For 1.5, usage metadata is often in response
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                contents=contents
+            )
+            
             usage = response.usage_metadata
             
             return {
@@ -39,3 +40,23 @@ class GeminiModel(BaseModel):
         except Exception as e:
             logger.error(f"Gemini Error: {e}")
             return {"error": str(e)}
+
+    def generate_stream(self, prompt: str, history: List[Dict[str, str]]):
+        try:
+            contents = []
+            for msg in history:
+                if msg["role"] == "system": continue
+                role = "user" if msg["role"] == "user" else "model"
+                contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+            contents.append({"role": "user", "parts": [{"text": prompt}]})
+            
+            response = self.client.models.generate_content_stream(
+                model=self.model_id,
+                contents=contents
+            )
+            for chunk in response:
+                if chunk.text:
+                    yield chunk.text
+        except Exception as e:
+            logger.error(f"Gemini Stream Error: {e}")
+            yield f"Error: {str(e)}"

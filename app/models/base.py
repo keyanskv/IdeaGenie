@@ -10,8 +10,10 @@ class BaseModel(ABC):
 
     @abstractmethod
     def generate_response(self, prompt: str, history: List[Dict[str, str]]) -> Dict[str, Any]:
-        """
-        Generates a response from the model.
-        Returns a dict with 'content', 'input_tokens', and 'output_tokens'.
-        """
+        """Generates a full response from the model."""
+        pass
+
+    @abstractmethod
+    def generate_stream(self, prompt: str, history: List[Dict[str, str]]):
+        """Yields text chunks as they arrive for a streaming experience."""
         pass

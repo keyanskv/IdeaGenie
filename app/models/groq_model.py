@@ -20,7 +20,6 @@ class GroqModel(BaseModel):
                 temperature=1,
                 max_completion_tokens=8192,
                 top_p=1,
-                reasoning_effort="medium" if "gpt-oss" in self.model_id else None,
                 stream=False
             )
             
@@ -36,3 +35,21 @@ class GroqModel(BaseModel):
         except Exception as e:
             logger.error(f"Groq Error: {e}")
             return {"error": str(e)}
+
+    def generate_stream(self, prompt: str, history: List[Dict[str, str]]):
+        try:
+            messages = history + [{"role": "user", "content": prompt}]
+            response = self.client.chat.completions.create(
+                model=self.model_id,
+                messages=messages,
+                temperature=1,
+                max_completion_tokens=8192,
+                top_p=1,
+                stream=True
+            )
+            for chunk in response:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as e:
+            logger.error(f"Groq Stream Error: {e}")
+            yield f"Error: {str(e)}"

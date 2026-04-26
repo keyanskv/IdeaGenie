@@ -15,7 +15,7 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    model_id: str = "gpt-4o"
+    agents: List[str] = ["gpt-4o"] # Support multiple models simultaneously
     mode: str = "auto"
     web_search: bool = False
     conversation_id: Optional[str] = None
